@@ -80,6 +80,27 @@ a {
   width: 100%;
 }
 
+.install-banner {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.install-banner p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.install-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .search-bar {
   margin-bottom: 16px;
 }
