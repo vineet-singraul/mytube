@@ -25,9 +25,7 @@ async function ensureBinary() {
   return ytDlpWrap;
 }
 
-// On-demand: sirf jab user "Download" dabaye tab hi video file banti hai,
-// server par permanently store nahi hoti — response ke baad turant delete.
-export async function downloadVideoToTempFile(youtubeUrl) {
+async function downloadToTempFile(youtubeUrl) {
   const ytdlp = await ensureBinary();
   const id = randomUUID();
   const outTemplate = path.join(TMP_DIR, `${id}.%(ext)s`);
@@ -50,4 +48,44 @@ export async function downloadVideoToTempFile(youtubeUrl) {
   const file = fs.readdirSync(TMP_DIR).find((f) => f.startsWith(id + '.') && !f.endsWith('.part'));
   if (!file) throw new Error('Download hua lekin file nahi mili.');
   return path.join(TMP_DIR, file);
+}
+
+// Render jaisi free hosting par ek single HTTP request ~100 second ke baad
+// khud hi timeout kar deti hai — yt-dlp+ffmpeg (kam CPU wale free plan par)
+// itni der me poora nahi hota. Isliye download ko background job ki tarah
+// chalate hain: turant "started" bol dete hain, client status poll karta
+// rehta hai, aur jab file taiyar ho jaaye tab ek alag (fast) request se
+// file serve hoti hai.
+const jobs = new Map();
+
+export function getJobStatus(videoId) {
+  return jobs.get(videoId) || null;
+}
+
+export function startDownloadJob(videoId, youtubeUrl) {
+  const existing = jobs.get(videoId);
+  if (existing && (existing.status === 'pending' || existing.status === 'ready')) {
+    return existing;
+  }
+
+  const job = { status: 'pending', filePath: null, error: null };
+  jobs.set(videoId, job);
+
+  downloadToTempFile(youtubeUrl)
+    .then((filePath) => {
+      job.filePath = filePath;
+      job.status = 'ready';
+    })
+    .catch((err) => {
+      job.status = 'failed';
+      job.error = String(err?.message || err).slice(0, 300);
+    });
+
+  return job;
+}
+
+export function clearJob(videoId) {
+  const job = jobs.get(videoId);
+  if (job?.filePath) fs.unlink(job.filePath, () => {});
+  jobs.delete(videoId);
 }
