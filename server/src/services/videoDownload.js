@@ -44,6 +44,11 @@ async function downloadToTempFile(youtubeUrl) {
     '--no-playlist',
     '--no-warnings',
     '--no-check-certificates',
+    // yt-dlp default sirf "deno" ko JS runtime maanta hai (YouTube ke "n
+    // challenge" ke liye), jo yahan install nahi hai — lekin Node.js already
+    // available hai (hum khud usi par chal rahe hain), bas use bolna padta hai.
+    '--js-runtimes',
+    'node',
   ];
 
   // Cloud hosting (Render/Railway/AWS) ki IP par YouTube "Sign in to confirm
