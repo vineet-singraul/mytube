@@ -60,6 +60,11 @@ a {
   color: var(--accent);
 }
 
+.nav-links {
+  display: flex;
+  gap: 8px;
+}
+
 .admin-link {
   padding: 6px 14px;
   border: 1px solid var(--border);

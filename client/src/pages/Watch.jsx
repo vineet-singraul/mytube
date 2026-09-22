@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../api/client.js';
 import VideoCard from '../components/VideoCard.jsx';
+import DownloadButton from '../components/DownloadButton.jsx';
 
 export default function Watch() {
   const { id } = useParams();
@@ -29,6 +30,7 @@ export default function Watch() {
         />
         <h1 className="watch-title">{video.title}</h1>
         <p className="watch-channel">{video.channel}</p>
+        <DownloadButton video={video} />
       </div>
       <div className="related-col">
         {related.map((v) => (

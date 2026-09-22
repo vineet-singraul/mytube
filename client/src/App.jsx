@@ -4,6 +4,7 @@ import InstallPrompt from './components/InstallPrompt.jsx';
 import Home from './pages/Home.jsx';
 import Watch from './pages/Watch.jsx';
 import Admin from './pages/Admin.jsx';
+import Downloads from './pages/Downloads.jsx';
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/watch/:id" element={<Watch />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/downloads" element={<Downloads />} />
         </Routes>
       </main>
     </div>
