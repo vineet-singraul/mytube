@@ -43,6 +43,11 @@ async function downloadToTempFile(youtubeUrl) {
     '--no-playlist',
     '--no-warnings',
     '--no-check-certificates',
+    // Cloud hosting (Render/Railway/AWS) ki IP par YouTube web-player client
+    // ko bot samajh kar block kar deta hai ("Sign in to confirm..."). Android
+    // client ki tarah request bhejne se ye check aam taur par bypass ho jaata hai.
+    '--extractor-args',
+    'youtube:player_client=android,web',
   ]);
 
   const file = fs.readdirSync(TMP_DIR).find((f) => f.startsWith(id + '.') && !f.endsWith('.part'));
