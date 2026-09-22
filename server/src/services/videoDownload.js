@@ -78,7 +78,8 @@ export function startDownloadJob(videoId, youtubeUrl) {
     })
     .catch((err) => {
       job.status = 'failed';
-      job.error = String(err?.message || err).slice(0, 300);
+      job.error = String(err?.message || err).slice(0, 2000);
+      console.error('Download job failed:', err);
     });
 
   return job;
