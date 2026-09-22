@@ -4,9 +4,10 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import ffmpegPath from 'ffmpeg-static';
-import { TMP_DIR, YTDLP_BIN_PATH } from '../config/paths.js';
+import { TMP_DIR, YTDLP_BIN_PATH, SERVER_ROOT } from '../config/paths.js';
 
 const MAX_HEIGHT = process.env.MAX_VIDEO_HEIGHT || '480';
+const COOKIES_PATH = process.env.COOKIES_PATH || path.join(SERVER_ROOT, 'cookies.txt');
 
 let ytDlpWrap = null;
 let ensureBinaryPromise = null;
@@ -30,7 +31,7 @@ async function downloadToTempFile(youtubeUrl) {
   const id = randomUUID();
   const outTemplate = path.join(TMP_DIR, `${id}.%(ext)s`);
 
-  await ytdlp.execPromise([
+  const args = [
     youtubeUrl,
     '-o',
     outTemplate,
@@ -43,12 +44,18 @@ async function downloadToTempFile(youtubeUrl) {
     '--no-playlist',
     '--no-warnings',
     '--no-check-certificates',
-    // Cloud hosting (Render/Railway/AWS) ki IP par YouTube web-player client
-    // ko bot samajh kar block kar deta hai ("Sign in to confirm..."). Android
-    // client ki tarah request bhejne se ye check aam taur par bypass ho jaata hai.
-    '--extractor-args',
-    'youtube:player_client=android,web',
-  ]);
+  ];
+
+  // Cloud hosting (Render/Railway/AWS) ki IP par YouTube "Sign in to confirm
+  // you're not a bot" bol kar block kar deta hai. Real logged-in cookies dene
+  // se ye check nahi lagta.
+  if (fs.existsSync(COOKIES_PATH)) {
+    args.push('--cookies', COOKIES_PATH);
+  } else {
+    args.push('--extractor-args', 'youtube:player_client=android,web');
+  }
+
+  await ytdlp.execPromise(args);
 
   const file = fs.readdirSync(TMP_DIR).find((f) => f.startsWith(id + '.') && !f.endsWith('.part'));
   if (!file) throw new Error('Download hua lekin file nahi mili.');
