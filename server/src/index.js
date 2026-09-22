@@ -21,7 +21,18 @@ app.get('/api/debug/cookies', (req, res) => {
   const exists = process.env.COOKIES_PATH ? fs.existsSync(process.env.COOKIES_PATH) : false;
   let size = null;
   if (exists) size = fs.statSync(process.env.COOKIES_PATH).size;
-  const secretsDir = fs.existsSync('/etc/secrets') ? fs.readdirSync('/etc/secrets') : '(no /etc/secrets dir)';
+  let secretsDir = '(no /etc/secrets dir)';
+  if (fs.existsSync('/etc/secrets')) {
+    secretsDir = fs.readdirSync('/etc/secrets').map((name) => {
+      const full = `/etc/secrets/${name}`;
+      try {
+        const st = fs.statSync(full);
+        return st.isDirectory() ? { name, dir: fs.readdirSync(full) } : { name, file: true };
+      } catch (e) {
+        return { name, error: String(e.message) };
+      }
+    });
+  }
   res.json({ COOKIES_PATH: p, exists, size, secretsDir });
 });
 
