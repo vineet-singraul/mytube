@@ -7,7 +7,17 @@ import ffmpegPath from 'ffmpeg-static';
 import { TMP_DIR, YTDLP_BIN_PATH, SERVER_ROOT } from '../config/paths.js';
 
 const MAX_HEIGHT = process.env.MAX_VIDEO_HEIGHT || '480';
-const COOKIES_PATH = process.env.COOKIES_PATH || path.join(SERVER_ROOT, 'cookies.txt');
+const SOURCE_COOKIES_PATH = process.env.COOKIES_PATH || path.join(SERVER_ROOT, 'cookies.txt');
+// Render ka Secret File read-only hota hai, lekin yt-dlp exit hote waqt
+// cookies file me wapas likhne ki koshish karta hai — isliye ek writable
+// working-copy banate hain aur usi ko yt-dlp ko dete hain.
+const WORKING_COOKIES_PATH = path.join(TMP_DIR, 'cookies-working.txt');
+
+function getCookiesPath() {
+  if (!fs.existsSync(SOURCE_COOKIES_PATH)) return null;
+  fs.copyFileSync(SOURCE_COOKIES_PATH, WORKING_COOKIES_PATH);
+  return WORKING_COOKIES_PATH;
+}
 
 let ytDlpWrap = null;
 let ensureBinaryPromise = null;
@@ -54,8 +64,9 @@ async function downloadToTempFile(youtubeUrl) {
   // Cloud hosting (Render/Railway/AWS) ki IP par YouTube "Sign in to confirm
   // you're not a bot" bol kar block kar deta hai. Real logged-in cookies dene
   // se ye check nahi lagta.
-  if (fs.existsSync(COOKIES_PATH)) {
-    args.push('--cookies', COOKIES_PATH);
+  const cookiesPath = getCookiesPath();
+  if (cookiesPath) {
+    args.push('--cookies', cookiesPath);
   } else {
     args.push('--extractor-args', 'youtube:player_client=android,web');
   }
