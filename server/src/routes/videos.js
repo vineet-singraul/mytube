@@ -1,11 +1,11 @@
 import express from 'express';
 import fs from 'fs';
+import path from 'path';
 import Video from '../models/Video.js';
-import { startDownloadJob, getJobStatus, clearJob } from '../services/videoDownload.js';
+import { VIDEO_DIR } from '../config/paths.js';
 
 const router = express.Router();
 
-// Public list — sirf ready videos dikhte hain.
 router.get('/', async (req, res) => {
   const { q } = req.query;
   const filter = { status: 'ready' };
@@ -20,38 +20,40 @@ router.get('/:id', async (req, res) => {
   res.json(video);
 });
 
-// Offline-download background job ki tarah chalta hai (dekhein videoDownload.js
-// me comment) taaki free hosting ke ~100s request-timeout se na takraye.
-router.post('/:id/download/start', async (req, res) => {
+// Local storage se range-request streaming — offline machine par bina
+// internet ke bhi seek/scrub sahi chalta hai.
+router.get('/:id/stream', async (req, res) => {
   const video = await Video.findById(req.params.id);
-  if (!video || video.status !== 'ready') return res.status(404).json({ error: 'not found' });
-  const job = startDownloadJob(video._id.toString(), video.youtubeUrl);
-  res.json({ status: job.status });
-});
+  if (!video || !video.videoFile) return res.status(404).end();
 
-router.get('/:id/download/status', (req, res) => {
-  const job = getJobStatus(req.params.id);
-  res.json({ status: job?.status || 'idle', error: job?.error || null });
-});
+  const filePath = path.join(VIDEO_DIR, video.videoFile);
+  if (!fs.existsSync(filePath)) return res.status(404).end();
 
-router.get('/:id/download/file', (req, res) => {
-  const job = getJobStatus(req.params.id);
-  if (!job || job.status !== 'ready' || !fs.existsSync(job.filePath)) {
-    return res.status(404).json({ error: 'not ready' });
+  const stat = fs.statSync(filePath);
+  const range = req.headers.range;
+
+  if (!range) {
+    res.writeHead(200, {
+      'Content-Length': stat.size,
+      'Content-Type': 'video/mp4',
+      'Accept-Ranges': 'bytes',
+    });
+    fs.createReadStream(filePath).pipe(res);
+    return;
   }
 
-  const stat = fs.statSync(job.filePath);
-  res.writeHead(200, {
-    'Content-Type': 'video/mp4',
-    'Content-Length': stat.size,
-  });
+  const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
+  const start = parseInt(startStr, 10);
+  const end = endStr ? parseInt(endStr, 10) : stat.size - 1;
+  const chunkSize = end - start + 1;
 
-  const stream = fs.createReadStream(job.filePath);
-  stream.pipe(res);
-  const cleanup = () => clearJob(req.params.id);
-  stream.on('close', cleanup);
-  stream.on('error', cleanup);
-  res.on('close', cleanup);
+  res.writeHead(206, {
+    'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+    'Accept-Ranges': 'bytes',
+    'Content-Length': chunkSize,
+    'Content-Type': 'video/mp4',
+  });
+  fs.createReadStream(filePath, { start, end }).pipe(res);
 });
 
 export default router;

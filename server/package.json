@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "export": "node src/scripts/export.js",
+    "import": "node src/scripts/import.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

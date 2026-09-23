@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react';
 import api, { getAdminKey, setAdminKey } from '../api/client.js';
 import ShareQR from '../components/ShareQR.jsx';
 
+const STATUS_LABELS = {
+  pending: 'Queue me',
+  downloading: 'Download ho raha hai',
+  ready: 'Ready',
+  failed: 'Fail',
+};
+
 export default function Admin() {
   const [keyInput, setKeyInput] = useState(getAdminKey());
   const [unlocked, setUnlocked] = useState(false);
@@ -30,30 +37,29 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadVideos() {
-    const res = await api.get('/admin/videos');
-    setVideos(res.data);
-  }
-
   useEffect(() => {
-    if (unlocked) loadVideos();
+    if (!unlocked) return;
+    const load = () =>
+      api
+        .get('/admin/videos')
+        .then((res) => setVideos(res.data))
+        .catch(() => {});
+    load();
+    const timer = setInterval(load, 3000);
+    return () => clearInterval(timer);
   }, [unlocked]);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setSending(true);
-    setMessage('Add ho raha hai...');
+    setMessage('');
     try {
       const res = await api.post('/admin/videos', { urls });
-      const added = res.data.results.filter((r) => r.status === 'added').length;
+      const queued = res.data.results.filter((r) => r.status === 'queued' || r.status === 'retrying').length;
       const exists = res.data.results.filter((r) => r.status === 'already_exists').length;
       const invalid = res.data.results.filter((r) => r.status === 'invalid').length;
-      const failed = res.data.results.filter((r) => r.status === 'failed').length;
-      setMessage(
-        `${added} video(s) add ho gaye. ${exists} pehle se maujood the. ${invalid} link invalid the. ${failed} fail ho gaye.`
-      );
+      setMessage(`${queued} video(s) queue me daal diye. ${exists} pehle se maujood the. ${invalid} link invalid the.`);
       setUrls('');
-      await loadVideos();
     } catch {
       setMessage('Kuch galat ho gaya, dobara try karein.');
     } finally {
@@ -65,6 +71,10 @@ export default function Admin() {
     if (!window.confirm('Ye video delete karein?')) return;
     await api.delete(`/admin/videos/${id}`);
     setVideos((v) => v.filter((x) => x._id !== id));
+  }
+
+  async function handleRetry(id) {
+    await api.post(`/admin/videos/${id}/retry`);
   }
 
   if (checking) return <p className="empty-state">Check ho raha hai...</p>;
@@ -109,6 +119,7 @@ export default function Admin() {
           <tr>
             <th>Title</th>
             <th>Status</th>
+            <th>Size</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -117,10 +128,12 @@ export default function Admin() {
             <tr key={v._id}>
               <td>{v.title || v.youtubeUrl}</td>
               <td>
-                <span className={`badge badge-${v.status}`}>{v.status === 'ready' ? 'Ready' : 'Fail'}</span>
+                <span className={`badge badge-${v.status}`}>{STATUS_LABELS[v.status] || v.status}</span>
                 {v.status === 'failed' && v.errorMessage && <div className="error-text">{v.errorMessage}</div>}
               </td>
-              <td>
+              <td>{v.fileSize ? `${(v.fileSize / (1024 * 1024)).toFixed(1)} MB` : '-'}</td>
+              <td className="actions-cell">
+                {v.status === 'failed' && <button onClick={() => handleRetry(v._id)}>Retry</button>}
                 <button className="danger" onClick={() => handleDelete(v._id)}>
                   Delete
                 </button>

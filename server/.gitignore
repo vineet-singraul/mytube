@@ -1,5 +1,7 @@
 node_modules/
 .env
 bin/
-tmp/
-cookies.txt
+storage/videos/*
+storage/thumbnails/*
+!storage/videos/.gitkeep
+!storage/thumbnails/.gitkeep

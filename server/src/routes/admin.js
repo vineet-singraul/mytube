@@ -1,14 +1,15 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
 import Video from '../models/Video.js';
-import { fetchYoutubeMetadata } from '../services/metadata.js';
+import { enqueueDownload } from '../services/downloader.js';
 import { extractYoutubeId } from '../utils/youtube.js';
 import { adminAuth } from '../middleware/adminAuth.js';
+import { VIDEO_DIR, THUMB_DIR } from '../config/paths.js';
 
 const router = express.Router();
 router.use(adminAuth);
 
-// Ek ya ek saath kai YouTube links add karne ke liye.
-// Body: { urls: "line1\nline2\nline3" }  ya  { urls: ["url1", "url2"] }
 router.post('/videos', async (req, res) => {
   const { urls } = req.body || {};
   if (!urls || (typeof urls !== 'string' && !Array.isArray(urls))) {
@@ -26,32 +27,23 @@ router.post('/videos', async (req, res) => {
       continue;
     }
 
-    const existing = await Video.findOne({ youtubeId });
-    if (existing) {
-      results.push({ url, status: 'already_exists', id: existing._id });
+    let video = await Video.findOne({ youtubeId });
+    if (video) {
+      if (video.status === 'failed') {
+        video.status = 'pending';
+        video.errorMessage = '';
+        await video.save();
+        enqueueDownload(video._id.toString());
+        results.push({ url, status: 'retrying', id: video._id });
+      } else {
+        results.push({ url, status: 'already_exists', id: video._id });
+      }
       continue;
     }
 
-    try {
-      const meta = await fetchYoutubeMetadata(youtubeId, url);
-      const video = await Video.create({
-        youtubeId,
-        youtubeUrl: url,
-        title: meta.title,
-        channel: meta.channel,
-        thumbnail: meta.thumbnail,
-        status: 'ready',
-      });
-      results.push({ url, status: 'added', id: video._id });
-    } catch (err) {
-      const video = await Video.create({
-        youtubeId,
-        youtubeUrl: url,
-        status: 'failed',
-        errorMessage: String(err?.message || err).slice(0, 300),
-      });
-      results.push({ url, status: 'failed', id: video._id });
-    }
+    video = await Video.create({ youtubeId, youtubeUrl: url, status: 'pending' });
+    enqueueDownload(video._id.toString());
+    results.push({ url, status: 'queued', id: video._id });
   }
 
   res.json({ results });
@@ -62,9 +54,30 @@ router.get('/videos', async (req, res) => {
   res.json(videos);
 });
 
+router.post('/videos/:id/retry', async (req, res) => {
+  const video = await Video.findById(req.params.id);
+  if (!video) return res.status(404).json({ error: 'not found' });
+  video.status = 'pending';
+  video.errorMessage = '';
+  await video.save();
+  enqueueDownload(video._id.toString());
+  res.json({ ok: true });
+});
+
 router.delete('/videos/:id', async (req, res) => {
   const video = await Video.findById(req.params.id);
   if (!video) return res.status(404).json({ error: 'not found' });
+
+  for (const [dir, file] of [
+    [VIDEO_DIR, video.videoFile],
+    [THUMB_DIR, video.thumbnailFile],
+  ]) {
+    if (file) {
+      const filePath = path.join(dir, file);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+  }
+
   await video.deleteOne();
   res.json({ ok: true });
 });

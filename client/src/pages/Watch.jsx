@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../api/client.js';
 import VideoCard from '../components/VideoCard.jsx';
-import DownloadButton from '../components/DownloadButton.jsx';
 
 export default function Watch() {
   const { id } = useParams();
@@ -20,17 +19,16 @@ export default function Watch() {
   return (
     <div className="watch-page">
       <div className="player-col">
-        <iframe
+        <video
           key={video._id}
+          src={`/api/videos/${video._id}/stream`}
+          controls
+          autoPlay
           className="video-player"
-          src={`https://www.youtube.com/embed/${video.youtubeId}?rel=0&autoplay=1`}
-          title={video.title}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
         />
         <h1 className="watch-title">{video.title}</h1>
         <p className="watch-channel">{video.channel}</p>
-        <DownloadButton video={video} />
+        {video.description && <p className="watch-description">{video.description}</p>}
       </div>
       <div className="related-col">
         {related.map((v) => (

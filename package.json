@@ -1,9 +1,0 @@
-{
-  "name": "mytube",
-  "private": true,
-  "version": "1.0.0",
-  "scripts": {
-    "build": "cd client && npm install && npm run build && cd ../server && npm install",
-    "start": "cd server && npm start"
-  }
-}
